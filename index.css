@@ -1,0 +1,160 @@
+import { initializeApp } from 'firebase/app';
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signOut, 
+  User 
+} from 'firebase/auth';
+import { 
+  getFirestore, 
+  doc, 
+  setDoc, 
+  getDoc 
+} from 'firebase/firestore';
+import { LocationNote } from './types';
+
+import firebaseConfig from '../firebase-applet-config.json';
+
+// Initialize Firebase
+export const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId); /* CRITICAL: The app will break without this line */
+export const googleProvider = new GoogleAuthProvider();
+
+// Standard Google Sign-In with Popup
+export async function signInWithGoogle(): Promise<User> {
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    return result.user;
+  } catch (error) {
+    console.error("Error signing in with Google:", error);
+    throw error;
+  }
+}
+
+// Sign Out
+export async function signOutUser(): Promise<void> {
+  try {
+    await signOut(auth);
+  } catch (error) {
+    console.error("Error signing out:", error);
+    throw error;
+  }
+}
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  }
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+/**
+ * Backup locations list to Firestore
+ */
+export async function backupLocationsToCloud(userId: string, locations: LocationNote[]): Promise<void> {
+  const path = `users/${userId}`;
+  try {
+    const userDocRef = doc(db, 'users', userId);
+    await setDoc(userDocRef, {
+      locations: locations,
+      updatedAt: Date.now()
+    }, { merge: true });
+    console.log("Backup successful for user:", userId);
+  } catch (error) {
+    console.error("Error backing up locations:", error);
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+/**
+ * Retrieve backup from Firestore
+ */
+export async function restoreLocationsFromCloud(userId: string): Promise<LocationNote[] | null> {
+  const path = `users/${userId}`;
+  try {
+    const userDocRef = doc(db, 'users', userId);
+    const docSnap = await getDoc(userDocRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      return (data.locations as LocationNote[]) || [];
+    }
+    return null;
+  } catch (error) {
+    console.error("Error restoring locations:", error);
+    handleFirestoreError(error, OperationType.GET, path);
+  }
+}
+
+/**
+ * Merges local and remote locations:
+ * - If location ID is unique to either, include it.
+ * - If location ID exists in both, keep the one with the latest updatedAt timestamp.
+ * - This prevents duplicate entries and preserves the latest edits.
+ */
+export function mergeLocations(local: LocationNote[], remote: LocationNote[]): LocationNote[] {
+  const mergedMap = new Map<string, LocationNote>();
+
+  // Add all local locations
+  for (const loc of local) {
+    mergedMap.set(loc.id, loc);
+  }
+
+  // Add remote locations, merging/resolving conflicts with updatedAt
+  for (const rLoc of remote) {
+    const existing = mergedMap.get(rLoc.id);
+    if (!existing) {
+      mergedMap.set(rLoc.id, rLoc);
+    } else {
+      // Keep the one with latest updatedAt (fallback to existing if timestamps are equal/missing)
+      const existingTime = existing.updatedAt || 0;
+      const remoteTime = rLoc.updatedAt || 0;
+      if (remoteTime > existingTime) {
+        mergedMap.set(rLoc.id, rLoc);
+      }
+    }
+  }
+
+  return Array.from(mergedMap.values());
+}

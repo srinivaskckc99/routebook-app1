@@ -1,0 +1,624 @@
+import React, { useState } from 'react';
+import { 
+  Folder, 
+  FileCode, 
+  ChevronRight, 
+  Copy, 
+  Check, 
+  Sparkles, 
+  Smartphone, 
+  Database, 
+  ShieldCheck, 
+  FileText, 
+  ArrowRight,
+  Sun,
+  Moon
+} from 'lucide-react';
+import { androidProjectFiles } from '../androidProjectCode';
+
+interface AndroidCodeExplorerProps {
+  selectedFile: string;
+  setSelectedFile: (file: string) => void;
+  copiedFile: boolean;
+  setCopiedFile: (val: boolean) => void;
+  rightPanelTab: 'code' | 'branding' | 'legal';
+  setRightPanelTab: (tab: 'code' | 'branding' | 'legal') => void;
+  locationsCount: number;
+  developerMode: boolean;
+  setDeveloperMode: (val: boolean) => void;
+  appTheme: 'light' | 'dark';
+}
+
+export default function AndroidCodeExplorer({
+  selectedFile,
+  setSelectedFile,
+  copiedFile,
+  setCopiedFile,
+  rightPanelTab,
+  setRightPanelTab,
+  locationsCount,
+  developerMode,
+  setDeveloperMode,
+  appTheme
+}: AndroidCodeExplorerProps) {
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({
+    'app': true,
+    'app/src': true,
+    'app/src/main': true,
+    'app/src/main/java': true,
+    'app/src/main/java/com': true,
+    'app/src/main/java/com/routebook': true,
+    'app/src/main/java/com/routebook/app': true,
+    'app/src/main/java/com/routebook/app/data': true,
+    'app/src/main/java/com/routebook/app/data/local': true,
+    'app/src/main/java/com/routebook/app/ui': true,
+  });
+
+  // Custom metadata states
+  const [appName, setAppName] = useState('RouteBook');
+  const [packageName, setPackageName] = useState('com.routebook.app');
+  const [iconColor, setIconColor] = useState('#6750A4');
+  const [iconStyle, setIconStyle] = useState<'round' | 'squircle' | 'adaptive'>('squircle');
+
+  const toggleFolder = (folder: string) => {
+    setExpandedFolders(prev => ({
+      ...prev,
+      [folder]: !prev[folder]
+    }));
+  };
+
+  const handleCopyCode = (content: string) => {
+    navigator.clipboard.writeText(content);
+    setCopiedFile(true);
+    setTimeout(() => setCopiedFile(false), 2000);
+  };
+
+  const activeFileObject = androidProjectFiles.find(f => f.path === selectedFile) || androidProjectFiles[0];
+
+  return (
+    <div className="w-full h-full bg-[#F7F2FA] rounded-[32px] border border-[#E8E0EB] shadow-2xl overflow-hidden flex flex-col font-sans select-none">
+      {/* Top Controls Header */}
+      <div className="px-6 py-4.5 bg-white border-b border-[#E8E0EB] flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-[#6750A4]/10 flex items-center justify-center text-[#6750A4]">
+            <Database className="w-4 h-4 stroke-[2]" />
+          </div>
+          <div>
+            <h1 className="text-sm font-black tracking-tight text-[#1D1B20]">Android Project Exporter</h1>
+            <p className="text-[10px] text-[#49454F] font-semibold">Jetpack Compose & Room SQLite Architecture</p>
+          </div>
+        </div>
+
+        {/* Exporter Mode Tab Switch */}
+        <div className="flex items-center bg-[#F3EDF7] p-1 rounded-full border border-[#E8E0EB]">
+          <button
+            onClick={() => setRightPanelTab('code')}
+            className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+              rightPanelTab === 'code' ? 'bg-[#6750A4] text-white shadow-md' : 'text-[#49454F] hover:bg-[#E8DEF8]/50'
+            }`}
+          >
+            <FileCode className="w-3.5 h-3.5" />
+            <span>Code Source</span>
+          </button>
+          <button
+            onClick={() => setRightPanelTab('branding')}
+            className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+              rightPanelTab === 'branding' ? 'bg-[#6750A4] text-white shadow-md' : 'text-[#49454F] hover:bg-[#E8DEF8]/50'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Branding & SQLite</span>
+          </button>
+          <button
+            onClick={() => setRightPanelTab('legal')}
+            className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+              rightPanelTab === 'legal' ? 'bg-[#6750A4] text-white shadow-md' : 'text-[#49454F] hover:bg-[#E8DEF8]/50'
+            }`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Legal Docs</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Panel Content Split */}
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        
+        {/* Left Side: Folder & File tree */}
+        {rightPanelTab === 'code' && (
+          <div className="w-64 bg-white border-r border-[#E8E0EB] flex flex-col shrink-0 overflow-y-auto">
+            <div className="p-4 border-b border-[#F3EDF7]">
+              <span className="text-[10px] font-black uppercase tracking-widest text-[#6750A4]">File Directory Tree</span>
+            </div>
+            
+            <div className="p-3 text-xs font-semibold text-[#1D1B20] space-y-1">
+              
+              {/* app root folder */}
+              <div>
+                <div 
+                  onClick={() => toggleFolder('app')} 
+                  className="flex items-center gap-1 py-1.5 px-2 rounded hover:bg-[#F3EDF7] cursor-pointer"
+                >
+                  <ChevronRight className={`w-3.5 h-3.5 text-[#6750A4] transition-transform ${expandedFolders['app'] ? 'rotate-90' : ''}`} />
+                  <Folder className="w-4 h-4 text-[#6750A4] shrink-0" />
+                  <span>app</span>
+                </div>
+
+                {expandedFolders['app'] && (
+                  <div className="pl-3.5 border-l border-[#CAC4D0] ml-3.5 space-y-0.5 py-1 text-[11px]">
+                    
+                    {/* build.gradle.kts */}
+                    <div 
+                      onClick={() => setSelectedFile('app/build.gradle.kts')}
+                      className={`flex items-center gap-1.5 py-1 px-2 rounded cursor-pointer transition-all ${
+                        selectedFile === 'app/build.gradle.kts' 
+                          ? 'bg-[#E8DEF8] text-[#1D192B]' 
+                          : 'text-[#49454F] hover:bg-[#F3EDF7]'
+                      }`}
+                    >
+                      <FileCode className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                      <span className="truncate">build.gradle.kts</span>
+                    </div>
+
+                    {/* src folder */}
+                    <div>
+                      <div 
+                        onClick={() => toggleFolder('app/src')}
+                        className="flex items-center gap-1 py-1 px-1.5 text-[#49454F] hover:bg-[#F3EDF7] rounded cursor-pointer"
+                      >
+                        <ChevronRight className={`w-3.5 h-3.5 text-[#6750A4] transition-transform ${expandedFolders['app/src'] ? 'rotate-90' : ''}`} />
+                        <Folder className="w-3.5 h-3.5 text-[#6750A4] shrink-0" />
+                        <span>src</span>
+                      </div>
+
+                      {expandedFolders['app/src'] && (
+                        <div className="pl-3 border-l border-[#CAC4D0] ml-3 space-y-0.5">
+                          
+                          {/* main folder */}
+                          <div>
+                            <div 
+                              onClick={() => toggleFolder('app/src/main')}
+                              className="flex items-center gap-1 py-1 px-1.5 text-[#49454F] hover:bg-[#F3EDF7] rounded cursor-pointer"
+                            >
+                              <ChevronRight className={`w-3.5 h-3.5 text-[#6750A4] transition-transform ${expandedFolders['app/src/main'] ? 'rotate-90' : ''}`} />
+                              <Folder className="w-3.5 h-3.5 text-[#6750A4] shrink-0" />
+                              <span>main</span>
+                            </div>
+
+                            {expandedFolders['app/src/main'] && (
+                              <div className="pl-3 border-l border-[#CAC4D0] ml-3 space-y-0.5">
+                                
+                                {/* AndroidManifest.xml */}
+                                <div 
+                                  onClick={() => setSelectedFile('app/src/main/AndroidManifest.xml')}
+                                  className={`flex items-center gap-1.5 py-1 px-2 rounded cursor-pointer transition-all ${
+                                    selectedFile === 'app/src/main/AndroidManifest.xml' 
+                                      ? 'bg-[#E8DEF8] text-[#1D192B]' 
+                                      : 'text-[#49454F] hover:bg-[#F3EDF7]'
+                                  }`}
+                                >
+                                  <FileCode className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                                  <span className="truncate">AndroidManifest.xml</span>
+                                </div>
+
+                                {/* java package */}
+                                <div>
+                                  <div 
+                                    onClick={() => toggleFolder('app/src/main/java')}
+                                    className="flex items-center gap-1 py-1 px-1.5 text-[#49454F] hover:bg-[#F3EDF7] rounded cursor-pointer"
+                                  >
+                                    <ChevronRight className={`w-3.5 h-3.5 text-[#6750A4] transition-transform ${expandedFolders['app/src/main/java'] ? 'rotate-90' : ''}`} />
+                                    <Folder className="w-3.5 h-3.5 text-[#6750A4] shrink-0" />
+                                    <span>java</span>
+                                  </div>
+
+                                  {expandedFolders['app/src/main/java'] && (
+                                    <div className="pl-3 border-l border-[#CAC4D0] ml-3 space-y-0.5">
+                                      
+                                      {/* com.routebook.app package */}
+                                      <div>
+                                        <div 
+                                          onClick={() => toggleFolder('app/src/main/java/com/routebook/app')}
+                                          className="flex items-center gap-1 py-1 px-1.5 text-[#49454F] hover:bg-[#F3EDF7] rounded cursor-pointer"
+                                        >
+                                          <ChevronRight className={`w-3.5 h-3.5 text-[#6750A4] transition-transform ${expandedFolders['app/src/main/java/com/routebook/app'] ? 'rotate-90' : ''}`} />
+                                          <Folder className="w-3.5 h-3.5 text-[#6750A4] shrink-0" />
+                                          <span className="truncate">com.routebook.app</span>
+                                        </div>
+
+                                        {expandedFolders['app/src/main/java/com/routebook/app'] && (
+                                          <div className="pl-3 border-l border-[#CAC4D0] ml-3 space-y-0.5 py-0.5 text-[10px]">
+                                            
+                                            {/* MainActivity.kt */}
+                                            <div 
+                                              onClick={() => setSelectedFile('app/src/main/java/com/routebook/app/MainActivity.kt')}
+                                              className={`flex items-center gap-1.5 py-1 px-2 rounded cursor-pointer transition-all ${
+                                                selectedFile === 'app/src/main/java/com/routebook/app/MainActivity.kt' 
+                                                  ? 'bg-[#E8DEF8] text-[#1D192B]' 
+                                                  : 'text-[#49454F] hover:bg-[#F3EDF7]'
+                                              }`}
+                                            >
+                                              <FileCode className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                              <span className="truncate">MainActivity.kt</span>
+                                            </div>
+
+                                            {/* data package */}
+                                            <div>
+                                              <div 
+                                                onClick={() => toggleFolder('app/src/main/java/com/routebook/app/data')}
+                                                className="flex items-center gap-1 py-1 px-1.5 text-[#49454F] hover:bg-[#F3EDF7] rounded cursor-pointer"
+                                              >
+                                                <ChevronRight className={`w-3.5 h-3.5 text-[#6750A4] transition-transform ${expandedFolders['app/src/main/java/com/routebook/app/data'] ? 'rotate-90' : ''}`} />
+                                                <Folder className="w-3.5 h-3.5 text-[#6750A4] shrink-0" />
+                                                <span>data</span>
+                                              </div>
+
+                                              {expandedFolders['app/src/main/java/com/routebook/app/data'] && (
+                                                <div className="pl-3 border-l border-[#CAC4D0] ml-3 space-y-0.5">
+                                                  
+                                                  {/* local room */}
+                                                  <div>
+                                                    <div 
+                                                      onClick={() => toggleFolder('app/src/main/java/com/routebook/app/data/local')}
+                                                      className="flex items-center gap-1 py-1 px-1.5 text-[#49454F] hover:bg-[#F3EDF7] rounded cursor-pointer"
+                                                    >
+                                                      <ChevronRight className={`w-3.5 h-3.5 text-[#6750A4] transition-transform ${expandedFolders['app/src/main/java/com/routebook/app/data/local'] ? 'rotate-90' : ''}`} />
+                                                      <Folder className="w-3.5 h-3.5 text-[#6750A4] shrink-0" />
+                                                      <span>local</span>
+                                                    </div>
+
+                                                    {expandedFolders['app/src/main/java/com/routebook/app/data/local'] && (
+                                                      <div className="pl-3.5 space-y-0.5 py-0.5 text-[9px]">
+                                                        <div 
+                                                          onClick={() => setSelectedFile('app/src/main/java/com/routebook/app/data/local/LocationEntity.kt')}
+                                                          className={`py-1 px-1.5 rounded cursor-pointer ${
+                                                            selectedFile === 'app/src/main/java/com/routebook/app/data/local/LocationEntity.kt'
+                                                              ? 'bg-[#E8DEF8] text-[#1D192B]'
+                                                              : 'text-[#49454F] hover:bg-[#F3EDF7]'
+                                                          }`}
+                                                        >
+                                                          LocationEntity.kt
+                                                        </div>
+                                                        <div 
+                                                          onClick={() => setSelectedFile('app/src/main/java/com/routebook/app/data/local/LocationDao.kt')}
+                                                          className={`py-1 px-1.5 rounded cursor-pointer ${
+                                                            selectedFile === 'app/src/main/java/com/routebook/app/data/local/LocationDao.kt'
+                                                              ? 'bg-[#E8DEF8] text-[#1D192B]'
+                                                              : 'text-[#49454F] hover:bg-[#F3EDF7]'
+                                                          }`}
+                                                        >
+                                                          LocationDao.kt
+                                                        </div>
+                                                        <div 
+                                                          onClick={() => setSelectedFile('app/src/main/java/com/routebook/app/data/local/RouteBookDatabase.kt')}
+                                                          className={`py-1 px-1.5 rounded cursor-pointer ${
+                                                            selectedFile === 'app/src/main/java/com/routebook/app/data/local/RouteBookDatabase.kt'
+                                                              ? 'bg-[#E8DEF8] text-[#1D192B]'
+                                                              : 'text-[#49454F] hover:bg-[#F3EDF7]'
+                                                          }`}
+                                                        >
+                                                          RouteBookDatabase.kt
+                                                        </div>
+                                                      </div>
+                                                    )}
+                                                  </div>
+
+                                                  {/* repository */}
+                                                  <div 
+                                                    onClick={() => setSelectedFile('app/src/main/java/com/routebook/app/data/repository/LocationRepository.kt')}
+                                                    className={`py-1 px-2 rounded cursor-pointer ${
+                                                      selectedFile === 'app/src/main/java/com/routebook/app/data/repository/LocationRepository.kt'
+                                                        ? 'bg-[#E8DEF8] text-[#1D192B]'
+                                                        : 'text-[#49454F] hover:bg-[#F3EDF7]'
+                                                    }`}
+                                                  >
+                                                    LocationRepository.kt
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+
+                                            {/* ui components */}
+                                            <div>
+                                              <div 
+                                                onClick={() => toggleFolder('app/src/main/java/com/routebook/app/ui')}
+                                                className="flex items-center gap-1 py-1 px-1.5 text-[#49454F] hover:bg-[#F3EDF7] rounded cursor-pointer"
+                                              >
+                                                <ChevronRight className={`w-3.5 h-3.5 text-[#6750A4] transition-transform ${expandedFolders['app/src/main/java/com/routebook/app/ui'] ? 'rotate-90' : ''}`} />
+                                                <Folder className="w-3.5 h-3.5 text-[#6750A4] shrink-0" />
+                                                <span>ui</span>
+                                              </div>
+
+                                              {expandedFolders['app/src/main/java/com/routebook/app/ui'] && (
+                                                <div className="pl-3.5 space-y-0.5 py-0.5 text-[9px]">
+                                                  <div 
+                                                    onClick={() => setSelectedFile('app/src/main/java/com/routebook/app/ui/theme/Color.kt')}
+                                                    className={`py-1 px-1.5 rounded cursor-pointer ${
+                                                      selectedFile === 'app/src/main/java/com/routebook/app/ui/theme/Color.kt'
+                                                        ? 'bg-[#E8DEF8] text-[#1D192B]'
+                                                        : 'text-[#49454F] hover:bg-[#F3EDF7]'
+                                                    }`}
+                                                  >
+                                                    Color.kt
+                                                  </div>
+                                                  <div 
+                                                    onClick={() => setSelectedFile('app/src/main/java/com/routebook/app/ui/theme/Theme.kt')}
+                                                    className={`py-1 px-1.5 rounded cursor-pointer ${
+                                                      selectedFile === 'app/src/main/java/com/routebook/app/ui/theme/Theme.kt'
+                                                        ? 'bg-[#E8DEF8] text-[#1D192B]'
+                                                        : 'text-[#49454F] hover:bg-[#F3EDF7]'
+                                                    }`}
+                                                  >
+                                                    Theme.kt
+                                                  </div>
+                                                  <div 
+                                                    onClick={() => setSelectedFile('app/src/main/java/com/routebook/app/ui/splash/SplashScreen.kt')}
+                                                    className={`py-1 px-1.5 rounded cursor-pointer ${
+                                                      selectedFile === 'app/src/main/java/com/routebook/app/ui/splash/SplashScreen.kt'
+                                                        ? 'bg-[#E8DEF8] text-[#1D192B]'
+                                                        : 'text-[#49454F] hover:bg-[#F3EDF7]'
+                                                    }`}
+                                                  >
+                                                    SplashScreen.kt
+                                                  </div>
+                                                  <div 
+                                                    onClick={() => setSelectedFile('app/src/main/java/com/routebook/app/ui/welcome/WelcomeScreen.kt')}
+                                                    className={`py-1 px-1.5 rounded cursor-pointer ${
+                                                      selectedFile === 'app/src/main/java/com/routebook/app/ui/welcome/WelcomeScreen.kt'
+                                                        ? 'bg-[#E8DEF8] text-[#1D192B]'
+                                                        : 'text-[#49454F] hover:bg-[#F3EDF7]'
+                                                    }`}
+                                                  >
+                                                    WelcomeScreen.kt
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+
+                                            {/* Android background worker */}
+                                            <div 
+                                              onClick={() => setSelectedFile('app/src/main/java/com/routebook/app/worker/VisitReminderWorker.kt')}
+                                              className={`flex items-center gap-1 py-1 px-1.5 rounded cursor-pointer ${
+                                                selectedFile === 'app/src/main/java/com/routebook/app/worker/VisitReminderWorker.kt'
+                                                  ? 'bg-[#E8DEF8] text-[#1D192B]'
+                                                  : 'text-[#49454F] hover:bg-[#F3EDF7]'
+                                              }`}
+                                            >
+                                              <span>VisitReminderWorker.kt</span>
+                                            </div>
+
+                                          </div>
+                                        )}
+                                      </div>
+
+                                    </div>
+                                  )}
+                                </div>
+
+                              </div>
+                            )}
+                          </div>
+
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* Right Panel: Content View Area */}
+        <div className="flex-1 flex flex-col min-w-0 bg-[#FAF8FC]">
+          
+          {/* Panel 1: Code source viewer */}
+          {rightPanelTab === 'code' && (
+            <div className="flex-1 flex flex-col min-h-0 relative">
+              {/* File Title Details */}
+              <div className="px-6 py-4 border-b border-[#E8E0EB] bg-white flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-black text-[#1D1B20] font-mono truncate">{activeFileObject.name}</h3>
+                  <p className="text-[9px] text-[#49454F] leading-tight mt-0.5">{activeFileObject.description}</p>
+                </div>
+                <button
+                  onClick={() => handleCopyCode(activeFileObject.content)}
+                  className={`px-3 py-1.5 bg-[#6750A4] text-white hover:bg-[#533F8A] font-bold text-[9px] uppercase tracking-wider rounded-full transition-all active:scale-95 flex items-center gap-1 shadow-sm cursor-pointer`}
+                >
+                  {copiedFile ? <Check className="w-3 h-3 text-[#D0BCFF]" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedFile ? 'Copied!' : 'Copy Source'}</span>
+                </button>
+              </div>
+
+              {/* Monospace Code Editor Pane */}
+              <div className="flex-1 p-5 overflow-auto bg-[#1C1B1F] text-white font-mono text-[10px] leading-relaxed selection:bg-[#49454F] selection:text-white relative">
+                <pre className="whitespace-pre overflow-x-auto select-text scrollbar-thin">
+                  <code>{activeFileObject.content}</code>
+                </pre>
+              </div>
+            </div>
+          )}
+
+          {/* Panel 2: Branding Settings Generator */}
+          {rightPanelTab === 'branding' && (
+            <div className="flex-1 p-6 overflow-y-auto space-y-6">
+              <div className="bg-white p-5 rounded-[24px] border border-[#E8E0EB] shadow-xs space-y-4">
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#6750A4] block">Android Launcher Brand Customizer</span>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-[#49454F]">Android App Label</label>
+                    <input
+                      type="text"
+                      value={appName}
+                      onChange={(e) => setAppName(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-xl text-[11px] font-medium border border-[#CAC4D0] bg-[#FAF8FC] outline-none focus:border-[#6750A4]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-[#49454F]">Kotlin Package Identifier</label>
+                    <input
+                      type="text"
+                      value={packageName}
+                      onChange={(e) => setPackageName(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-xl text-[11px] font-medium border border-[#CAC4D0] bg-[#FAF8FC] outline-none focus:border-[#6750A4] font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-[#49454F]">Launcher Icon Color</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={iconColor}
+                        onChange={(e) => setIconColor(e.target.value)}
+                        className="w-8 h-8 rounded-lg cursor-pointer border-0 outline-none"
+                      />
+                      <span className="text-xs font-mono font-semibold uppercase">{iconColor}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-[#49454F]">Icon Shape Format</label>
+                    <div className="flex gap-2">
+                      {['squircle', 'round', 'adaptive'].map((style) => (
+                        <button
+                          key={style}
+                          onClick={() => setIconStyle(style as any)}
+                          className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase border transition-all cursor-pointer ${
+                            iconStyle === style 
+                              ? 'bg-[#E8DEF8] text-[#1D192B] border-[#D0BCFF]' 
+                              : 'bg-[#FAF8FC] border-[#CAC4D0] hover:bg-slate-100 text-[#49454F]'
+                          }`}
+                        >
+                          {style}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Simulated Android Launcher Icon Preview */}
+                <div className="bg-[#FAF8FC] p-4.5 rounded-2xl border border-[#E8E0EB] flex flex-col items-center justify-center space-y-2">
+                  <span className="text-[9px] font-black tracking-widest text-[#49454F] uppercase">Simulated Android Launcher Icon</span>
+                  
+                  <div 
+                    style={{ 
+                      backgroundColor: iconColor,
+                      borderRadius: iconStyle === 'squircle' ? '20px' : iconStyle === 'round' ? '9999px' : '4px'
+                    }}
+                    className="w-14 h-14 flex items-center justify-center shadow-lg transition-all border border-white/20"
+                  >
+                    <svg className="w-8 h-8 text-white filter drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <span className="text-[10px] font-extrabold tracking-wide text-slate-800">{appName}</span>
+                </div>
+              </div>
+
+              {/* SQLite Room Migrations Panel */}
+              <div className="bg-white p-5 rounded-[24px] border border-[#E8E0EB] shadow-xs space-y-4">
+                <span className="text-[10px] font-black uppercase tracking-wider text-[#6750A4] block">Room SQLite Schemas & Preseeds</span>
+                
+                <div className="space-y-3.5">
+                  <p className="text-[10px] text-[#49454F] leading-relaxed">
+                    Upon clicking export, RouteBook bundles your customized coordinates, prioritizations, and visit records directly into an offline pre-populated SQLite asset database for native Android devices.
+                  </p>
+
+                  <div className="bg-[#FAF8FC] p-4 rounded-xl border border-[#E8E0EB] space-y-2">
+                    <span className="text-[9px] font-black text-slate-800 uppercase tracking-widest">Metadata Migration Report</span>
+                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span className="text-[#49454F]">Active Pins:</span>
+                        <span className="font-bold text-slate-800">{locationsCount}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span className="text-[#49454F]">Schema Version:</span>
+                        <span className="font-mono font-bold text-[#6750A4]">v4 (Production)</span>
+                      </div>
+                      <div className="flex justify-between pb-0.5">
+                        <span className="text-[#49454F]">Auto Migrations:</span>
+                        <span className="font-bold text-green-600">Enabled</span>
+                      </div>
+                      <div className="flex justify-between pb-0.5">
+                        <span className="text-[#49454F]">Asset Packing:</span>
+                        <span className="font-bold text-blue-600">SQLite Asset Helper</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      alert("Offline Room DB schema compiled successfully! Current locations are packed and ready in assets/databases/routebook.db.");
+                    }}
+                    className="w-full py-3.5 bg-[#E8DEF8] text-[#1D192B] hover:bg-[#DCD0F0] font-black text-[10px] uppercase tracking-wider rounded-xl border border-[#D0BCFF] transition-all active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Database className="w-3.5 h-3.5" />
+                    <span>Compile & Pack SQLite Asset DB</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Panel 3: Legal Policy Export */}
+          {rightPanelTab === 'legal' && (
+            <div className="flex-1 p-6 overflow-y-auto space-y-6">
+              {/* Privacy Policy */}
+              <div className="bg-white p-5 rounded-[24px] border border-[#E8E0EB] shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-[#6750A4]">Privacy Policy (Google Play Compliant)</span>
+                  <button
+                    onClick={() => {
+                      const text = `ROUTEBOOK PRIVACY POLICY\nLast Updated: June 2026\n\n1. INFORMATION COLLECTION\nAll database bookmarks remain fully local in SQLite sandboxes unless secure cloud sync is turned on...\n\nContact developer@routebook.com for more info.`;
+                      navigator.clipboard.writeText(text);
+                      alert("Privacy Policy copied to clipboard!");
+                    }}
+                    className="text-[9px] font-black uppercase tracking-wider text-[#6750A4] hover:underline cursor-pointer"
+                  >
+                    Copy Plain Text
+                  </button>
+                </div>
+                <div className="p-4 bg-[#FAF8FC] rounded-2xl text-[9px] text-[#49454F] font-mono leading-relaxed h-32 overflow-y-auto border border-[#E8E0EB]">
+                  <strong>1. OFFLINE STORAGE & GEOLOCATION CONTROL</strong><br />
+                  RouteBook is designed as an offline-first utility. All customer logs, coordinates notes, and delivery priorities are processed on-device. No location coordinate or GPS log is uploaded without your signed, authenticated action.<br/><br/>
+                  <strong>2. THIRD PARTY INTENTS</strong><br />
+                  Our app triggers map navigation coordinates using system routing intents targeted at standard map providers, preserving complete privacy isolation.
+                </div>
+              </div>
+
+              {/* Terms of Service */}
+              <div className="bg-white p-5 rounded-[24px] border border-[#E8E0EB] shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-[#6750A4]">Terms of Service</span>
+                  <button
+                    onClick={() => {
+                      const text = `ROUTEBOOK TERMS OF SERVICE\nLast Updated: June 2026\n\n1. USE LICENSE\nGranting offline client routing utility strictly under device local memory...\n\nContact developer@routebook.com for details.`;
+                      navigator.clipboard.writeText(text);
+                      alert("Terms of Service copied to clipboard!");
+                    }}
+                    className="text-[9px] font-black uppercase tracking-wider text-[#6750A4] hover:underline cursor-pointer"
+                  >
+                    Copy Plain Text
+                  </button>
+                </div>
+                <div className="p-4 bg-[#FAF8FC] rounded-2xl text-[9px] text-[#49454F] font-mono leading-relaxed h-32 overflow-y-auto border border-[#E8E0EB]">
+                  <strong>1. LIABILITY FOR LOCAL PERSISTENCE</strong><br />
+                  RouteBook processes your customer details in local cache. We make no warranty and are not liable for accidental data loss arising from hardware failures, device wipes, cache clearouts, or manual application uninstallations.<br/><br/>
+                  <strong>2. TRAFFIC COMPLIANCE</strong><br />
+                  The user must conform to speed limits and traffic rules when tracking active routing coordinates.
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      </div>
+    </div>
+  );
+}

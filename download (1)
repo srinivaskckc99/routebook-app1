@@ -1,0 +1,488 @@
+import React, { useState, useEffect } from 'react';
+import { useMap, useMapsLibrary, useApiLoadingStatus, APILoadingStatus, Map, AdvancedMarker, Pin } from '@vis.gl/react-google-maps';
+import { MapPin, Search, Navigation, AlertTriangle } from 'lucide-react';
+
+const API_KEY =
+  process.env.GOOGLE_MAPS_PLATFORM_KEY ||
+  (import.meta as any).env?.VITE_GOOGLE_MAPS_PLATFORM_KEY ||
+  (globalThis as any).GOOGLE_MAPS_PLATFORM_KEY ||
+  '';
+const hasValidKey = Boolean(API_KEY) && API_KEY.trim() !== '';
+
+interface MapPickerProps {
+  selectedLat: number;
+  setSelectedLat: (lat: number) => void;
+  selectedLng: number;
+  setSelectedLng: (lng: number) => void;
+  selectedAddress: string;
+  setSelectedAddress: (addr: string) => void;
+  appTheme: 'light' | 'dark';
+  setNewPlaceName?: (name: string) => void;
+  readOnly?: boolean;
+}
+
+export default function MapPicker({
+  selectedLat,
+  setSelectedLat,
+  selectedLng,
+  setSelectedLng,
+  selectedAddress,
+  setSelectedAddress,
+  appTheme,
+  setNewPlaceName,
+  readOnly = false
+}: MapPickerProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+
+  // If a real key is present, we use the Google Maps library integration
+  if (hasValidKey) {
+    return (
+      <RealGoogleMap
+        selectedLat={selectedLat}
+        setSelectedLat={setSelectedLat}
+        selectedLng={selectedLng}
+        setSelectedLng={setSelectedLng}
+        selectedAddress={selectedAddress}
+        setSelectedAddress={setSelectedAddress}
+        appTheme={appTheme}
+        setNewPlaceName={setNewPlaceName}
+        readOnly={readOnly}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        isSearching={isSearching}
+        setIsSearching={setIsSearching}
+        isLocating={isLocating}
+        setIsLocating={setIsLocating}
+        searchResults={searchResults}
+        setSearchResults={setSearchResults}
+      />
+    );
+  }
+
+  // Fallback to Interactive Simulated Map if no key is supplied
+  return (
+    <SimulatedMap
+      selectedLat={selectedLat}
+      setSelectedLat={setSelectedLat}
+      selectedLng={selectedLng}
+      setSelectedLng={setSelectedLng}
+      selectedAddress={selectedAddress}
+      setSelectedAddress={setSelectedAddress}
+      appTheme={appTheme}
+      setNewPlaceName={setNewPlaceName}
+      readOnly={readOnly}
+      searchQuery={searchQuery}
+      setSearchQuery={setSearchQuery}
+      isSearching={isSearching}
+      setIsSearching={setIsSearching}
+      isLocating={isLocating}
+      setIsLocating={setIsLocating}
+      searchResults={searchResults}
+      setSearchResults={setSearchResults}
+    />
+  );
+}
+
+// ==========================================
+// 1. REAL GOOGLE MAP IMPLEMENTATION
+// ==========================================
+function RealGoogleMap({
+  selectedLat,
+  setSelectedLat,
+  selectedLng,
+  setSelectedLng,
+  selectedAddress,
+  setSelectedAddress,
+  appTheme,
+  setNewPlaceName,
+  readOnly,
+  searchQuery,
+  setSearchQuery,
+  isSearching,
+  setIsSearching,
+  isLocating,
+  setIsLocating,
+  searchResults,
+  setSearchResults
+}: any) {
+  const map = useMap();
+  const placesLib = useMapsLibrary('places');
+  const geocoderLib = useMapsLibrary('geocoding');
+  const status = useApiLoadingStatus();
+
+  // Handle address searches via Places Service
+  const executeSearch = () => {
+    if (!searchQuery.trim() || !placesLib || !map) return;
+    setIsSearching(true);
+
+    const service = new placesLib.PlacesService(map);
+    const request = {
+      query: searchQuery,
+      fields: ['name', 'geometry', 'formatted_address'],
+    };
+
+    service.textSearch(request, (results, status) => {
+      setIsSearching(false);
+      if (status === google.maps.places.PlacesServiceStatus.OK && results && results[0]) {
+        const place = results[0];
+        const lat = place.geometry?.location?.lat() || 30.2672;
+        const lng = place.geometry?.location?.lng() || -97.7431;
+        const addr = place.formatted_address || place.name || 'Searched Location';
+
+        setSelectedLat(lat);
+        setSelectedLng(lng);
+        setSelectedAddress(addr);
+        if (setNewPlaceName) setNewPlaceName(place.name || '');
+
+        map.setCenter({ lat, lng });
+        map.setZoom(16);
+      }
+    });
+  };
+
+  // Reverse Geocoding Helper for click/drag pin events
+  const reverseGeocode = (lat: number, lng: number) => {
+    if (!geocoderLib) return;
+    const geocoder = new geocoderLib.Geocoder();
+    geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+      if (status === 'OK' && results && results[0]) {
+        setSelectedAddress(results[0].formatted_address);
+      } else {
+        setSelectedAddress(`Pin Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`);
+      }
+    });
+  };
+
+  // Handle map click in edit mode
+  const handleMapClick = (e: any) => {
+    if (readOnly) return;
+    const lat = e.detail?.latLng?.lat;
+    const lng = e.detail?.latLng?.lng;
+    if (lat && lng) {
+      setSelectedLat(lat);
+      setSelectedLng(lng);
+      reverseGeocode(lat, lng);
+    }
+  };
+
+  // Drag marker end
+  const handleMarkerDragEnd = (e: any) => {
+    const lat = e.latLng?.lat();
+    const lng = e.latLng?.lng();
+    if (lat && lng) {
+      setSelectedLat(lat);
+      setSelectedLng(lng);
+      reverseGeocode(lat, lng);
+    }
+  };
+
+  // GPS locate simulation
+  const handleLocateMe = () => {
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocating(false);
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setSelectedLat(lat);
+        setSelectedLng(lng);
+        reverseGeocode(lat, lng);
+        if (map) {
+          map.setCenter({ lat, lng });
+          map.setZoom(15);
+        }
+      },
+      (err) => {
+        setIsLocating(false);
+        console.error("GPS location error:", err);
+      },
+      { enableHighAccuracy: true, timeout: 5000 }
+    );
+  };
+
+  const isLoaded = status === APILoadingStatus.LOADED;
+
+  return (
+    <div className="w-full h-full relative flex flex-col">
+      {!readOnly && isLoaded && (
+        <div className="absolute top-3 left-3 right-3 z-20 flex gap-2">
+          <div className="flex-1 relative flex items-center">
+            <input
+              type="text"
+              placeholder="Search cities or business places..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && executeSearch()}
+              className={`w-full px-4.5 py-3 pr-10 rounded-2xl text-[11px] font-medium shadow-lg border outline-none focus:ring-2 focus:ring-[#6750A4]/40 ${
+                appTheme === 'light'
+                  ? 'bg-white border-[#E8E0EB] text-[#1C1B1F] placeholder-slate-400'
+                  : 'bg-[#25232A] border-[#36343B] text-[#E6E1E5] placeholder-[#938F99]'
+              }`}
+            />
+            <button
+              onClick={executeSearch}
+              className={`absolute right-3 p-1 rounded-full ${
+                appTheme === 'light' ? 'text-slate-500 hover:bg-slate-100' : 'text-[#CAC4D0] hover:bg-white/5'
+              }`}
+            >
+              <Search className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="w-full h-full relative" style={{ minHeight: '140px' }}>
+        <Map
+          defaultCenter={{ lat: selectedLat, lng: selectedLng }}
+          defaultZoom={14}
+          center={{ lat: selectedLat, lng: selectedLng }}
+          mapId="DEMO_MAP_ID"
+          internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
+          onClick={handleMapClick}
+          style={{ width: '100%', height: '100%' }}
+          disableDefaultUI={true}
+          zoomControl={true}
+        >
+          <AdvancedMarker
+            position={{ lat: selectedLat, lng: selectedLng }}
+            draggable={!readOnly}
+            onDragEnd={handleMarkerDragEnd}
+          >
+            <Pin background="#6750A4" glyphColor="#fff" borderColor="#381E72" />
+          </AdvancedMarker>
+        </Map>
+
+        {!readOnly && (
+          <button
+            onClick={handleLocateMe}
+            disabled={isLocating}
+            className={`absolute bottom-4 right-4 z-20 p-3 rounded-full shadow-lg border transition-all active:scale-95 flex items-center justify-center ${
+              appTheme === 'light'
+                ? 'bg-white border-[#E8E0EB] text-[#6750A4] hover:bg-slate-50'
+                : 'bg-[#25232A] border-[#36343B] text-[#D0BCFF] hover:bg-[#2F2C36]'
+            }`}
+          >
+            <Navigation className={`w-4 h-4 ${isLocating ? 'animate-pulse' : ''}`} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 2. SIMULATED INTERACTIVE MAP FALLBACK
+// ==========================================
+const MOCK_PLACES = [
+  { name: 'TechSource Supply Hub', address: '1200 Innovation Way, Suite 400, Austin, TX 78701', lat: 30.2672, lng: -97.7431 },
+  { name: 'Apex Retail Pharmacy', address: '450 Broadway St, New York, NY 10013', lat: 40.7233, lng: -74.0030 },
+  { name: 'Westside General Hospital', address: '8900 Logistics Blvd, Chicago, IL 60609', lat: 41.8119, lng: -87.6658 },
+  { name: 'ABC Medical Center', address: '1500 Medical Parkway, Suite 100, Austin, TX 78756', lat: 30.2742, lng: -97.7401 },
+  { name: 'Downtown Austin Market', address: '422 Congress Ave, Austin, TX 78701', lat: 30.2655, lng: -97.7418 },
+  { name: 'Silicon Valley Labs', address: '1600 Amphitheatre Pkwy, Mountain View, CA 94043', lat: 37.4220, lng: -122.0841 },
+  { name: 'Empire State Building', address: '350 5th Ave, New York, NY 10118', lat: 40.7484, lng: -73.9857 }
+];
+
+function SimulatedMap({
+  selectedLat,
+  setSelectedLat,
+  selectedLng,
+  setSelectedLng,
+  selectedAddress,
+  setSelectedAddress,
+  appTheme,
+  setNewPlaceName,
+  readOnly,
+  searchQuery,
+  setSearchQuery,
+  isSearching,
+  setIsSearching,
+  isLocating,
+  setIsLocating,
+  searchResults,
+  setSearchResults
+}: any) {
+  // Simple suggestion matcher
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const filtered = MOCK_PLACES.filter(
+      p =>
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.address.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    setSearchResults(filtered);
+  }, [searchQuery]);
+
+  const selectPlace = (place: any) => {
+    setSelectedLat(place.lat);
+    setSelectedLng(place.lng);
+    setSelectedAddress(place.address);
+    if (setNewPlaceName) setNewPlaceName(place.name);
+    setSearchQuery('');
+    setSearchResults([]);
+  };
+
+  // Handle map canvas click
+  const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (readOnly) return;
+    // Calculate click relative position and offset from center to simulate coordinates variation
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    // Convert relative click coordinates to variation around Austin center
+    const dx = (x / rect.width - 0.5) * 0.05;
+    const dy = (0.5 - y / rect.height) * 0.05; // invert Y
+    
+    const targetLat = selectedLat + dy;
+    const targetLng = selectedLng + dx;
+
+    setSelectedLat(parseFloat(targetLat.toFixed(5)));
+    setSelectedLng(parseFloat(targetLng.toFixed(5)));
+    setSelectedAddress(`Simulated Location Pin (${targetLat.toFixed(4)}, ${targetLng.toFixed(4)})`);
+  };
+
+  // Simulated GPS positioning
+  const handleGPSLocate = () => {
+    setIsLocating(true);
+    setTimeout(() => {
+      setIsLocating(false);
+      // Center back to Austin or simulated GPS position
+      setSelectedLat(30.26715);
+      setSelectedLng(-97.74306);
+      setSelectedAddress("701 Congress Ave, Austin, TX 78701 (Current Location)");
+    }, 800);
+  };
+
+  const isLight = appTheme === 'light';
+
+  return (
+    <div className="w-full h-full relative flex flex-col overflow-hidden select-none">
+      {/* Search Bar / Address lookup */}
+      {!readOnly && (
+        <div className="absolute top-2.5 left-2.5 right-2.5 z-20 flex flex-col gap-1.5">
+          <div className="relative flex items-center">
+            <input
+              type="text"
+              placeholder="Search simulated locations/cities..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className={`w-full px-3.5 py-2.5 pr-9 rounded-xl text-[10px] font-medium shadow-md border outline-none focus:ring-1.5 focus:ring-[#6750A4]/40 ${
+                isLight
+                  ? 'bg-white border-[#E8E0EB] text-slate-800 placeholder-slate-400'
+                  : 'bg-[#25232A] border-[#36343B] text-slate-200 placeholder-slate-500'
+              }`}
+            />
+            <Search className={`absolute right-3 w-3 h-3 ${isLight ? 'text-slate-400' : 'text-slate-500'}`} />
+          </div>
+
+          {/* Autocomplete dropdown suggestions */}
+          {searchResults.length > 0 && (
+            <div className={`max-h-36 overflow-y-auto rounded-xl shadow-lg border p-1.5 flex flex-col gap-0.5 z-30 ${
+              isLight ? 'bg-white border-[#E8E0EB]' : 'bg-[#25232A] border-[#36343B]'
+            }`}>
+              {searchResults.map((p, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => selectPlace(p)}
+                  className={`w-full text-left p-1.5 rounded-lg text-[9px] font-medium transition-all active:scale-99 flex flex-col cursor-pointer ${
+                    isLight ? 'hover:bg-slate-50 text-slate-800' : 'hover:bg-white/5 text-slate-200'
+                  }`}
+                >
+                  <span className="font-bold truncate">{p.name}</span>
+                  <span className="text-[8px] text-slate-400 truncate">{p.address}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Map visual canvas representation */}
+      <div 
+        onClick={handleCanvasClick}
+        className={`w-full h-full flex-1 min-h-[140px] relative flex flex-col items-center justify-center cursor-crosshair overflow-hidden transition-colors ${
+          isLight ? 'bg-[#F2EFF4]' : 'bg-[#141218]'
+        }`}
+      >
+        {/* Stylized vector grid pattern representing streets */}
+        <div className={`absolute inset-0 bg-[linear-gradient(rgba(103,80,164,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(103,80,164,0.06)_1px,transparent_1px)] bg-[size:20px_20px]`} />
+        
+        {/* Mock major avenues */}
+        <div className={`absolute w-full h-1 bg-opacity-20 translate-y-8 ${isLight ? 'bg-[#6750A4]' : 'bg-[#D0BCFF]'}`} />
+        <div className={`absolute w-full h-1 bg-opacity-20 -translate-y-12 ${isLight ? 'bg-[#6750A4]' : 'bg-[#D0BCFF]'}`} />
+        <div className={`absolute h-full w-1.5 bg-opacity-20 translate-x-12 ${isLight ? 'bg-[#6750A4]' : 'bg-[#D0BCFF]'}`} />
+        <div className={`absolute h-full w-1 bg-opacity-20 -translate-x-10 ${isLight ? 'bg-[#6750A4]' : 'bg-[#D0BCFF]'}`} />
+
+        {/* Floating background markers for context */}
+        {MOCK_PLACES.slice(0, 4).map((p, idx) => {
+          // Compute static mock offset coordinates
+          const offsetLeft = `${40 + (idx * 15)}%`;
+          const offsetTop = `${30 + (idx * 12)}%`;
+          return (
+            <div 
+              key={idx} 
+              style={{ left: offsetLeft, top: offsetTop }}
+              className="absolute flex flex-col items-center pointer-events-none opacity-40 scale-75"
+            >
+              <MapPin className={`w-3.5 h-3.5 ${isLight ? 'text-slate-400' : 'text-slate-600'}`} />
+              <span className={`text-[6px] font-bold px-1 py-0.5 rounded shadow bg-opacity-80 mt-0.5 ${
+                isLight ? 'bg-white text-slate-600' : 'bg-slate-800 text-slate-400'
+              }`}>
+                {p.name.slice(0, 10)}...
+              </span>
+            </div>
+          );
+        })}
+
+        {/* Central interactive pin */}
+        <div className="relative z-10 flex flex-col items-center animate-bounce duration-1000">
+          <MapPin className={`w-8 h-8 filter drop-shadow-md stroke-[2.5] ${isLight ? 'text-[#6750A4]' : 'text-[#D0BCFF]'}`} />
+          <div className={`absolute -bottom-1.5 w-2 h-1 rounded-full bg-black/20 blur-xs`} />
+        </div>
+
+        {/* Floating simulated badge */}
+        <div className={`absolute bottom-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[8px] font-black border uppercase tracking-wider backdrop-blur-md ${
+          isLight 
+            ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' 
+            : 'bg-amber-400/10 text-amber-300 border-amber-400/20'
+        }`}>
+          <AlertTriangle className="w-2.5 h-2.5" />
+          <span>Interactive Sim Map</span>
+        </div>
+
+        {/* GPS Locate Button */}
+        {!readOnly && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleGPSLocate();
+            }}
+            disabled={isLocating}
+            className={`absolute bottom-3 right-3 z-10 p-2.5 rounded-full shadow-md border transition-all active:scale-95 flex items-center justify-center cursor-pointer ${
+              isLight
+                ? 'bg-white border-[#E8E0EB] text-[#6750A4] hover:bg-slate-50'
+                : 'bg-[#25232A] border-[#36343B] text-[#D0BCFF] hover:bg-[#2F2C36]'
+            }`}
+          >
+            <Navigation className={`w-3 h-3 ${isLocating ? 'animate-pulse text-amber-500' : ''}`} />
+          </button>
+        )}
+      </div>
+
+      {/* Address Bar */}
+      <div className={`p-2 border-t text-[8.5px] leading-relaxed font-semibold flex items-center gap-1.5 shrink-0 ${
+        isLight ? 'bg-[#F7F2FA] border-[#E8E0EB] text-slate-700' : 'bg-[#1D1B20] border-[#36343B] text-slate-300'
+      }`}>
+        <MapPin className="w-3 h-3 text-[#D0BCFF] shrink-0" />
+        <span className="truncate">{selectedAddress}</span>
+      </div>
+    </div>
+  );
+}

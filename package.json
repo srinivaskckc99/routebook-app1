@@ -1,0 +1,29 @@
+{
+  "entities": {
+    "UserBackup": {
+      "title": "UserBackup",
+      "description": "A user's backup of their locations",
+      "type": "object",
+      "properties": {
+        "locations": {
+          "type": "array",
+          "description": "List of synced route locations for the user"
+        },
+        "updatedAt": {
+          "type": "integer",
+          "description": "Last timestamp when the backup was updated"
+        }
+      },
+      "required": [
+        "locations",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "UserBackup",
+      "description": "Stores user location notes backup"
+    }
+  }
+}
